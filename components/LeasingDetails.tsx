@@ -1,0 +1,482 @@
+
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
+import { Car, Profile, ListingImage, ListingFeature } from '../types';
+import { Button } from './Button';
+import { isInWishlist, toggleWishlist } from '../lib/wishlist';
+import { CarCard } from './CarCard';
+
+const Icons = {
+  Calendar: () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
+  Mileage: () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>,
+  Transmission: () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
+  Fuel: () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>,
+  Body: () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+  Engine: () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.642.321a2 2 0 01-1.583.13l-2.731-.91a1 1 0 00-1.284.945V18a2 2 0 002 2h10a2 2 0 002-2v-1.572a2 2 0 00-.572-1.414z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 8l-3 3m0 0l-3-3m3 3V3" /></svg>,
+  Color: () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" /></svg>,
+  Doors: () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>,
+  Location: () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
+  Check: () => <svg className="w-4 h-4 text-[#237837]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>,
+  Share: () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>,
+  Phone: () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>,
+  Email: () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2-2v10a2 2 0 002 2z" /></svg>,
+  ChevronLeft: () => <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>,
+  ChevronRight: () => <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>,
+  Video: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>,
+  Make: () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+};
+
+export const CarDetails: React.FC = () => {
+  const { id: carId } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const trustBarRef = useRef<HTMLDivElement>(null);
+
+  const [car, setCar] = useState<Car | null>(null);
+  const [dealer, setDealer] = useState<Profile | null>(null);
+  const [images, setImages] = useState<ListingImage[]>([]);
+  const [features, setFeatures] = useState<ListingFeature[]>([]);
+  const [relatedCars, setRelatedCars] = useState<Car[]>([]);
+  const [activeImage, setActiveImage] = useState<string | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [isSaved, setIsSaved] = useState(false);
+  const [explanation, setExplanation] = useState<{ title: string; text: string } | null>(null);
+  
+  // Visibility states
+  const [phoneRevealed, setPhoneRevealed] = useState(false);
+  const [emailRevealed, setEmailRevealed] = useState(false);
+
+  useEffect(() => {
+    if (!carId) return;
+
+    const fetchFullDetails = async () => {
+      setLoading(true);
+      try {
+        const { data: listingData, error: listingError } = await supabase
+          .from('listings')
+          .select('*, profiles(*)')
+          .eq('id', carId)
+          .single();
+
+        if (listingError) throw listingError;
+        setCar(listingData as any as Car);
+        setActiveImage(listingData.main_image_url);
+        setIsSaved(isInWishlist(carId));
+        
+        if (listingData.profiles) {
+          setDealer(listingData.profiles as Profile);
+          const { data: otherData } = await supabase
+            .from('listings')
+            .select('*')
+            .eq('user_id', listingData.user_id)
+            .neq('id', carId)
+            .eq('status', 'approved')
+            .limit(4);
+          if (otherData) setRelatedCars(otherData as any as Car[]);
+        }
+
+        const { data: imgData } = await supabase.from("listing_images").select("*").eq("listing_id", carId).order("position", { ascending: true });
+        if (imgData) setImages(imgData as ListingImage[]);
+
+        const { data: featureData } = await supabase.from('listing_features').select('*').eq('listing_id', carId);
+        if (featureData) setFeatures(featureData as ListingFeature[]);
+      } catch (err) {
+        console.error('Error:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFullDetails();
+  }, [carId]);
+
+  const allImages = [
+    { id: 'main', image_url: car?.main_image_url || '' }, 
+    ...images.map(img => ({ id: img.id, image_url: img.image_url }))
+  ].filter(img => img.image_url);
+
+  useEffect(() => {
+    if (loading || allImages.length <= 1 || lightboxOpen) return;
+    
+    const interval = setInterval(() => {
+      if (!carouselRef.current) return;
+      const currentScroll = carouselRef.current.scrollLeft;
+      const itemWidth = carouselRef.current.offsetWidth;
+      const maxScroll = carouselRef.current.scrollWidth - itemWidth;
+      
+      let nextScroll = currentScroll + itemWidth;
+      if (nextScroll >= maxScroll + 1) nextScroll = 0;
+      
+      carouselRef.current.scrollTo({ left: nextScroll, behavior: 'smooth' });
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [loading, allImages.length, lightboxOpen]);
+
+  const scrollGallery = (direction: 'left' | 'right') => {
+    if (!carouselRef.current) return;
+    const scrollAmount = carouselRef.current.offsetWidth;
+    carouselRef.current.scrollBy({ left: direction === 'right' ? scrollAmount : -scrollAmount, behavior: 'smooth' });
+  };
+
+  const handleShare = async () => {
+    if (!car) return;
+    const shareTitle = `${car.year} ${car.listing_title}`;
+    const shareText = `Check out this ${car.year} ${car.listing_title} on AutoSource ZW! Price: ${car.currency} ${car.price?.toLocaleString()}`;
+    const shareUrl = window.location.href;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: shareTitle, text: shareText, url: shareUrl });
+      } catch (err) { console.error('Error sharing:', err); }
+    } else {
+      try {
+        await navigator.clipboard.writeText(`${shareText}\n\nLink: ${shareUrl}`);
+        alert('Listing details and link copied to clipboard!');
+      } catch (err) { console.error('Failed to copy:', err); }
+    }
+  };
+
+  if (loading) return (
+    <div className="max-w-7xl mx-auto px-4 py-40 flex flex-col items-center justify-center">
+      <div className="w-12 h-12 border-4 border-[#237837]/20 border-t-[#237837] rounded-full animate-spin mb-4"></div>
+      <p className="text-slate-500 font-bold uppercase tracking-widest text-[11px]">Loading Vehicle Data...</p>
+    </div>
+  );
+
+  if (!car) return null;
+
+  const groupedFeatures = features.reduce((acc, feature) => {
+    if (!acc[feature.category]) acc[feature.category] = [];
+    acc[feature.category].push(feature.name);
+    return acc;
+  }, {} as Record<string, string[]>);
+
+  const specs = [
+    { label: 'Make', value: car.make, icon: <Icons.Make /> },
+    { label: 'Model', value: car.model, icon: <Icons.Body /> },
+    { label: 'Year', value: car.year, icon: <Icons.Calendar /> },
+    { label: 'Mileage', value: `${car.mileage?.toLocaleString()} km`, icon: <Icons.Mileage /> },
+    { label: 'Transmission', value: car.transmission, icon: <Icons.Transmission /> },
+    { label: 'Fuel Type', value: car.fuel_type, icon: <Icons.Fuel /> },
+    { label: 'Body Type', value: car.body_type, icon: <Icons.Body /> },
+    { label: 'Engine Size', value: car.engine_size || 'N/A', icon: <Icons.Engine /> },
+    { label: 'Color', value: car.color || 'N/A', icon: <Icons.Color /> },
+    { label: 'Doors', value: car.doors || 'N/A', icon: <Icons.Doors /> },
+  ];
+
+  const dealerPhone = dealer?.business_phone || dealer?.phone || '+263 788 832 950';
+  const dealerEmail = dealer?.email || 'sales@autosource.co.zw';
+  const whatsappNumber = dealerPhone.replace(/\+/g, '').replace(/\s/g, '').replace(/\-/g, '');
+
+  const handleWhatsAppEnquiry = () => {
+    if (!car) return;
+    const message = `Hi, I am interested in the ${car.year} ${car.make} ${car.model} listed on AutoSource ZW for ${car.currency} ${car.price?.toLocaleString()}.\n\nListing details: ${window.location.href}`;
+    window.open(`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`, '_blank');
+  };
+
+  const trustItems = [
+    { label: 'Verified sellers', title: 'Verified Seller Promise', text: 'All dealers on our platform undergo a rigorous 5-point verification process, checking their identity, business registration, and physical premises to ensure absolute security for buyers.' },
+    { label: 'Transparent pricing', title: 'Transparent Pricing Policy', text: 'We ensure all listings show the full asking price with no hidden dealer administration fees or secret charges added at the time of sale.' }
+  ];
+
+  const maskString = (str: string, visibleCount: number = 4) => {
+    if (str.length <= visibleCount) return str;
+    return str.substring(0, visibleCount) + '•'.repeat(str.length - visibleCount);
+  };
+
+  const getEmbedUrl = (url: string) => {
+    if (url.includes('youtube.com/watch?v=')) return url.replace('watch?v=', 'embed/');
+    if (url.includes('youtu.be/')) return url.replace('youtu.be/', 'youtube.com/embed/');
+    return url;
+  };
+
+  return (
+    <div className="bg-[#fcfcfc] min-h-screen pb-32 relative">
+      {/* Explanation Popup */}
+      {explanation && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-md" onClick={() => setExplanation(null)} />
+          <div className="relative bg-white w-full max-w-md rounded-[40px] p-10 shadow-2xl animate-in zoom-in-95">
+             <button onClick={() => setExplanation(null)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-900 transition-colors">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+             </button>
+             <h3 className="text-2xl font-black text-slate-900 mb-4">{explanation.title}</h3>
+             <p className="text-slate-600 font-medium leading-relaxed">{explanation.text}</p>
+             <Button variant="primary" fullWidth className="mt-8 rounded-2xl h-14" onClick={() => setExplanation(null)}>Got it</Button>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox */}
+      {lightboxOpen && (
+        <div className="fixed inset-0 z-[100] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4 cursor-zoom-out" onClick={() => setLightboxOpen(false)}>
+           <img src={activeImage || car.main_image_url} className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl animate-in zoom-in-95" alt="Zoomed view" />
+        </div>
+      )}
+
+      {/* Trust Bar */}
+      <div className="bg-[#f8f9fa] border-b border-slate-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-12 flex items-center justify-between gap-4">
+           <div className="flex items-center gap-2 flex-grow overflow-hidden relative">
+              <div ref={trustBarRef} className="flex items-center gap-8 overflow-x-auto no-scrollbar scroll-smooth snap-x snap-mandatory whitespace-nowrap px-1">
+                {trustItems.map((item, i) => (
+                  <button key={i} onClick={() => setExplanation({ title: item.title, text: item.text })} className="flex items-center gap-2 text-[11px] font-bold text-slate-600 hover:text-[#237837] transition-colors snap-start">
+                    <div className="w-1.5 h-1.5 rounded-full bg-[#237837]" />
+                    <span className="underline decoration-dotted underline-offset-4">{item.label}</span>
+                  </button>
+                ))}
+              </div>
+           </div>
+
+           <div className="flex items-center gap-2 text-[14px] font-black text-slate-900 shrink-0 pl-4 border-l border-slate-200">
+              <Icons.Phone />
+              <button 
+                onClick={() => setPhoneRevealed(true)}
+                className={`hover:text-[#237837] transition-colors ${!phoneRevealed ? 'cursor-pointer' : 'cursor-default'}`}
+              >
+                {phoneRevealed ? <a href={`tel:${dealerPhone}`}>{dealerPhone}</a> : maskString(dealerPhone, 7)}
+              </button>
+           </div>
+        </div>
+      </div>
+
+      {/* Navigation Header */}
+      <div className="bg-white border-b border-slate-100 sticky top-0 z-40 py-4 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+          <button onClick={() => navigate(-1)} className="flex items-center gap-3 text-slate-500 hover:text-[#237837] font-black text-[11px] uppercase tracking-widest transition-all">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+            Back
+          </button>
+          <div className="flex items-center gap-3 md:gap-4">
+             <button onClick={handleShare} className="flex items-center gap-2 px-4 md:px-6 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all bg-slate-50 text-slate-500 hover:bg-slate-100">
+                <Icons.Share />
+                <span className="hidden sm:inline">Share</span>
+             </button>
+             <button onClick={() => toggleWishlist(car.id)} className={`flex items-center gap-2 px-4 md:px-6 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all ${isSaved ? 'bg-[#237837] text-white shadow-lg' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>
+                <svg className="w-3.5 h-3.5" fill={isSaved ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                </svg>
+                {isSaved ? 'Saved' : 'Save Car'}
+             </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        <div className="flex flex-col lg:flex-row gap-12">
+          <div className="flex-grow space-y-10 lg:max-w-[calc(100%-400px)]">
+            <div className="space-y-6">
+              <div className="relative group/gallery">
+                <div ref={carouselRef} className="relative aspect-[16/10] bg-white rounded-[48px] overflow-x-auto snap-x snap-mandatory flex no-scrollbar cursor-zoom-in group shadow-2xl border border-slate-100">
+                  {allImages.map((img, idx) => (
+                    <div key={img.id} className="w-full h-full flex-shrink-0 snap-center relative" onClick={() => { setActiveImage(img.image_url); setLightboxOpen(true); }}>
+                      <img src={img.image_url} alt={`${car.listing_title} ${idx + 1}`} className="w-full h-full object-cover" />
+                      <div className="absolute bottom-8 right-8 bg-black/60 backdrop-blur-md px-5 py-2 rounded-2xl text-white text-[10px] font-black uppercase tracking-widest shadow-xl">
+                        {idx + 1} / {allImages.length}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button onClick={() => scrollGallery('left')} className="absolute left-6 top-1/2 -translate-y-1/2 w-14 h-14 bg-white/90 backdrop-blur-md border border-slate-100 rounded-2xl flex items-center justify-center text-slate-900 shadow-xl opacity-0 group-hover/gallery:opacity-100 transition-all hover:bg-white active:scale-95 z-20 hidden md:flex">
+                  <Icons.ChevronLeft />
+                </button>
+                <button onClick={() => scrollGallery('right')} className="absolute right-6 top-1/2 -translate-y-1/2 w-14 h-14 bg-white/90 backdrop-blur-md border border-slate-100 rounded-2xl flex items-center justify-center text-slate-900 shadow-xl opacity-0 group-hover/gallery:opacity-100 transition-all hover:bg-white active:scale-95 z-20 hidden md:flex">
+                  <Icons.ChevronRight />
+                </button>
+              </div>
+              <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
+                {allImages.map((img, idx) => (
+                  <button key={img.id} onClick={() => { carouselRef.current?.scrollTo({ left: carouselRef.current.offsetWidth * idx, behavior: 'smooth' }); }} className={`flex-shrink-0 w-28 aspect-[4/3] rounded-[20px] overflow-hidden border-4 transition-all duration-300 border-transparent opacity-60 hover:opacity-100`}>
+                    <img src={img.image_url} alt="Thumbnail" className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-white rounded-[48px] p-10 md:p-14 shadow-sm border border-slate-100 space-y-12">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 border-b border-slate-50 pb-10">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <span className="bg-[#237837] text-white px-4 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-lg shadow-[#237837]/20">{car.condition}</span>
+                    <span className="text-slate-400 text-[11px] font-bold flex items-center gap-2 uppercase tracking-widest">
+                       <Icons.Location /> {car.location_city}, ZW
+                    </span>
+                  </div>
+                  <h1 className="text-[30px] font-black text-slate-900 tracking-tighter leading-tight">
+                    {car.year} {car.listing_title}
+                  </h1>
+                </div>
+                <div className="text-left md:text-right w-full md:w-auto">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Asking Price</p>
+                  <div className="text-[15px] font-black text-[#237837] tracking-tighter leading-none">
+                    {car.currency} {car.price?.toLocaleString()}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                {specs.map((spec, i) => (
+                  <div key={i} className="bg-slate-50/50 p-6 rounded-3xl border border-slate-100 transition-all hover:bg-white hover:shadow-xl hover:shadow-[#237837]/5 group">
+                    <div className="text-[#237837] mb-3 group-hover:scale-110 transition-transform">{spec.icon}</div>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{spec.label}</p>
+                    <p className="text-[13px] font-black text-slate-900 tracking-tight">{spec.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {car.video_url && (
+                <div className="space-y-6 pt-4">
+                   <h2 className="text-[25px] font-black text-slate-900 uppercase tracking-tighter flex items-center gap-3">
+                     <Icons.Video /> Video Tour
+                   </h2>
+                   <div className="aspect-video w-full rounded-[40px] overflow-hidden bg-slate-100 shadow-inner border border-slate-100">
+                      {car.video_url.includes('youtube') || car.video_url.includes('youtu.be') ? (
+                        <iframe src={getEmbedUrl(car.video_url)} className="w-full h-full" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>
+                      ) : (
+                        <video src={car.video_url} controls className="w-full h-full object-cover"></video>
+                      )}
+                   </div>
+                </div>
+              )}
+
+              <div className="space-y-6">
+                <h2 className="text-[25px] font-black text-slate-900 uppercase tracking-tighter">Detailed Description</h2>
+                <div className="text-slate-600 font-medium leading-relaxed text-[13px] whitespace-pre-wrap tracking-tight">
+                  {car.description || "No detailed description provided."}
+                </div>
+              </div>
+
+              <div className="space-y-10">
+                <h2 className="text-[25px] font-black text-slate-900 uppercase tracking-tighter">Key Features & Equipment</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10">
+                  {Object.entries(groupedFeatures).map(([category, items]) => (
+                    <div key={category} className="space-y-4">
+                      <h3 className="text-[11px] font-black text-[#237837] uppercase tracking-[0.2em] border-b border-slate-50 pb-3">{category}</h3>
+                      <div className="grid grid-cols-1 gap-3">
+                        {items.map((item, i) => (
+                          <div key={i} className="flex items-center gap-3 text-slate-600 font-bold text-[13px] tracking-tight group">
+                            <div className="w-5 h-5 rounded-lg bg-[#237837]/10 flex items-center justify-center shrink-0">
+                               <Icons.Check />
+                            </div>
+                            {item}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <aside className="w-full lg:w-[380px] flex-shrink-0 space-y-6">
+            <div className="bg-white rounded-[48px] p-10 border border-slate-100 shadow-xl shadow-slate-200/50 sticky top-[100px]">
+               <div className="flex flex-col items-center text-center space-y-6">
+                  <div className="w-24 h-24 rounded-[32px] bg-slate-50 border-2 border-slate-50 shadow-xl overflow-hidden flex items-center justify-center">
+                    {dealer?.logo_url || dealer?.avatar_url ? (
+                      <img src={dealer.logo_url || dealer.avatar_url || ''} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-slate-900 text-[#237837]">
+                        <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="text-[15px] font-black tracking-tighter leading-none text-slate-900">{dealer?.business_name || dealer?.full_name || 'Verified Seller'}</h3>
+                    <div className="flex items-center justify-center gap-2 mt-3">
+                      <span className="bg-[#237837] text-white px-4 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-lg shadow-[#237837]/20">Verified Dealer</span>
+                    </div>
+                  </div>
+                  
+                  <div className="w-full space-y-8 pt-6 border-t border-slate-50">
+                    {/* Showroom Location - Styled like Image */}
+                    <div className="flex items-center gap-5 group">
+                      <div className="w-14 h-14 rounded-full bg-[#f8f9fa] flex items-center justify-center text-[#237837] shrink-0">
+                         <Icons.Location />
+                      </div>
+                      <div className="flex flex-col">
+                        <p className="text-[11px] font-black text-[#8a94a6] uppercase tracking-wider mb-0.5">Showroom Location</p>
+                        <p className="text-[16px] font-black text-[#0f172a] tracking-tight">{car.location_city}, ZW</p>
+                      </div>
+                    </div>
+
+                    {/* Dealer Email - Styled like Image */}
+                    <button 
+                      onClick={() => setEmailRevealed(true)}
+                      className="w-full flex items-center gap-5 group/item text-left outline-none"
+                    >
+                      <div className="w-14 h-14 rounded-full bg-[#237837] flex items-center justify-center text-white shrink-0 group-hover/item:scale-105 transition-transform">
+                         <Icons.Email />
+                      </div>
+                      <div className="flex flex-col">
+                        <p className="text-[11px] font-black text-[#8a94a6] uppercase tracking-wider mb-0.5">Dealer Email</p>
+                        <p className="text-[15px] font-black text-[#0f172a] tracking-tight truncate max-w-[180px]">
+                          {emailRevealed ? dealerEmail : maskString(dealerEmail, 4)}
+                        </p>
+                      </div>
+                    </button>
+                    
+                    {/* Phone Display - Large rounded clean button style */}
+                    <div className="space-y-4 pt-4">
+                      <button 
+                        onClick={() => setPhoneRevealed(true)}
+                        className="w-full bg-[#f8f9fa] hover:bg-[#f1f5f9] text-[#0f172a] text-[18px] font-black py-6 rounded-[24px] transition-all flex items-center justify-center shadow-sm"
+                      >
+                        {phoneRevealed ? (
+                           <a href={`tel:${dealerPhone}`} onClick={(e) => e.stopPropagation()}>{dealerPhone}</a>
+                        ) : (
+                           `Show Number`
+                        )}
+                      </button>
+                      <Button 
+                        fullWidth 
+                        className="rounded-[24px] h-16 bg-[#25D366] text-white border-none text-[13px] font-black uppercase tracking-widest shadow-xl shadow-[#25D366]/20" 
+                        onClick={handleWhatsAppEnquiry}
+                      >
+                        WhatsApp Enquiry
+                      </Button>
+                    </div>
+                  </div>
+               </div>
+            </div>
+
+            <div className="bg-slate-900 rounded-[40px] p-10 text-white relative overflow-hidden group">
+               <div className="absolute top-0 right-0 w-24 h-24 bg-[#237837]/10 rounded-full blur-[60px]" />
+               <h4 className="text-[15px] font-black mb-4 relative z-10">Buying Securely</h4>
+               <ul className="space-y-4 relative z-10">
+                  {['Always meet in public spaces.', 'Never send money before viewing.', 'Verify logbook authenticity.', 'Request ZIMRA clearance.'].map((tip, i) => (
+                    <li key={i} className="flex gap-3 text-[11px] text-slate-400 font-medium">
+                      <div className="w-1.5 h-1.5 rounded-full bg-[#237837] mt-1.5 shrink-0" />
+                      {tip}
+                    </li>
+                  ))}
+               </ul>
+            </div>
+          </aside>
+        </div>
+
+        {/* Related Inventory */}
+        {relatedCars.length > 0 && (
+          <div className="mt-24 pt-20 border-t border-slate-100">
+            <div className="flex flex-col md:flex-row justify-between items-end mb-10 gap-6">
+              <div>
+                <h2 className="text-[25px] font-black text-slate-900 tracking-tighter leading-none">More from this Seller</h2>
+                <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-2">Available in {dealer?.business_name || 'showroom'}</p>
+              </div>
+              <Button variant="ghost" className="text-[#237837] font-black text-[13px] uppercase tracking-widest group" onClick={() => navigate('/marketplace')}>
+                View Showroom
+                <svg className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+              </Button>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6">
+              {relatedCars.map(relatedCar => <CarCard key={relatedCar.id} car={relatedCar} />)}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};

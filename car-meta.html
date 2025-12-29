@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vehicle Listing | AutoSource ZW</title>
+  
+  <!-- Fallback Tags for Scrapers -->
+  <meta property="og:type" content="website" />
+<meta property="og:title" content="%OG_TITLE%" />
+<meta property="og:description" content="%OG_DESCRIPTION%" />
+<meta property="og:image" content="%OG_IMAGE%" />
+<meta name="twitter:card" content="summary_large_image" />
+
+
+  <script>
+    async function handleMetadataRedirection() {
+      const params = new URLSearchParams(window.location.search);
+      const carId = params.get('id');
+      
+      if (!carId) {
+        window.location.replace('/');
+        return;
+      }
+
+      const supabaseUrl = 'https://svazvuxrosjlddujtcsg.supabase.co';
+      const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN2YXp2dXhyb3NqbGRkdWp0Y3NnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQxNjgzMjUsImV4cCI6MjA3OTc0NDMyNX0.Xj3xOucFCIjHgs6UMRMPHnRZ7vbTmZZJZDgzE0WkeTs';
+
+      try {
+        // Use Headers constructor to fix 401 "Missing authorization header"
+        const myHeaders = new Headers();
+        myHeaders.append("apikey", supabaseKey);
+        myHeaders.append("Authorization", "Bearer " + supabaseKey);
+
+        const requestOptions = {
+          method: 'GET',
+          headers: myHeaders,
+          redirect: 'follow'
+        };
+
+        const response = await fetch(`${supabaseUrl}/rest/v1/listings?id=eq.${carId}&select=*`, requestOptions);
+        const data = await response.json();
+        
+        if (data && data.length > 0) {
+          const car = data[0];
+          const title = `${car.year} ${car.make} ${car.model} | ${car.currency} ${car.price.toLocaleString()}`;
+          const desc = `View this ${car.condition} ${car.make} ${car.model} in ${car.location_city}. ${car.listing_title}`;
+          const img = car.main_image_url;
+
+          document.title = title;
+          document.getElementById('og-title').setAttribute('content', title);
+          document.getElementById('og-desc').setAttribute('content', desc);
+          document.getElementById('og-image').setAttribute('content', img);
+          
+          // Twitter specifics
+          const twTitle = document.createElement('meta');
+          twTitle.setAttribute('name', 'twitter:title');
+          twTitle.setAttribute('content', title);
+          document.head.appendChild(twTitle);
+
+          const twImg = document.createElement('meta');
+          twImg.setAttribute('name', 'twitter:image');
+          twImg.setAttribute('content', img);
+          document.head.appendChild(twImg);
+        }
+      } catch (err) {
+        console.error('Meta fetch failed:', err);
+      } finally {
+        // Redirection must happen after a small delay to allow some scrapers to read the updated DOM
+        // or immediately for real users.
+        window.location.replace('/car/' + carId);
+      }
+    }
+
+    handleMetadataRedirection();
+  </script>
+</head>
+<body style="font-family: 'Plus Jakarta Sans', sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #fcfcfc; color: #666; margin: 0;">
+  <div style="text-align: center; padding: 20px;">
+    <div style="width: 40px; height: 40px; border: 3px solid #23783720; border-top-color: #237837; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px;"></div>
+    <p style="font-weight: 800; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: #237837;">Redirecting to AutoSource ZW...</p>
+  </div>
+  <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+</body>
+</html>
